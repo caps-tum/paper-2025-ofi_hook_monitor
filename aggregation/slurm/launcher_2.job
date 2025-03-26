@@ -1,0 +1,87 @@
+#!/bin/bash
+
+#SBATCH -D .
+#SBATCH -J ofi_benchmark
+#SBATCH --get-user-env
+#SBATCH --partition=micro
+#SBATCH --hint=nomultithread
+#SBATCH --mail-type=none
+#SBATCH --time=04:00:00
+#SBATCH --export=none
+#SBATCH --account=pn76ni
+#SBATCH --ear=off
+#SBATCH --switches=1
+#SBATCH --wait-all-nodes=1
+#SBATCH --constraint="work"
+#SBATCH --output=/hppfs/work/pn76ni/ge35ber3/ofi_hook_monitor/data/job/%x_%j.out
+#SBATCH --error=/hppfs/work/pn76ni/ge35ber3/ofi_hook_monitor/data/job/%x_%j.err
+
+module load slurm_setup
+module load parallel
+module load numactl
+module use ~/spack/modules/x86_avx512/linux-sles15-x86_64/
+module load bzip2
+module unload intel-mpi
+
+WRAPPER="$HOME/ofi_hook_monitor/aggregation/slurm/wrapper.sh"
+LAUNCHER="$HOME/ofi_hook_monitor/aggregation/launcher/launcher_multi.sh"
+BASEDIR="$WORK_LIST/ofi_hook_monitor/data/measurements"
+MON_OUTDIR="$WORK_LIST/ofi_hook_monitor/data/monitoring/$SLURM_JOB_ID"
+MPIRUN="$HOME/build/ompi505_monitor_build/bin/mpirun"
+OSU_BASE="$HOME/build/osu-7.4/c/mpi/"
+LAST_CORE="47" # last physical core (i.e. no SMT) on system
+
+# wrapper script to call the telegraf monitoring plugin
+# export two environent variables which will otherwise not propagate to ssh shell (see below)
+cat > "$WRAPPER" << EOT
+#!/bin/bash
+export SLURM_JOB_ID=$SLURM_JOBID
+export SLURMD_NODENAME=\$(hostname)
+$(which numactl) -C $LAST_CORE \
+ "$HOME/build/telegraf/telegraf" \
+  --config "$HOME/ofi_hook_monitor/deployment/telegraf_1s.conf"
+EOT
+chmod u+x "$WRAPPER"
+
+mkdir --parents "$MON_OUTDIR"
+
+# ssh into every machine in SLURM_NODELIST and call the wrapper script 
+hostlist=$(scontrol show hostnames $SLURM_NODELIST | awk '{print $1 "opa"}' | tr '\n' ',')
+seq $SLURM_NNODES | parallel -P 1 -S ${hostlist::-1} "$WRAPPER" &
+
+echo "osu_latency" 
+SLURM_OVERLAP=1 SLURM_TASKS_PER_NODE="1(x$SLURM_JOB_NUM_NODES)" \
+  bash "$HOME/ofi_hook_monitor/aggregation/launcher/launcher_multi.sh" \
+  --basedir "/hppfs/work/pn76ni/ge35ber3/ofi_hook_monitor/data/measurements" \
+  --mpirun "$HOME/build/ompi505_monitor_build/bin/mpirun" \
+  --iterations 25 \
+  --mpi-args "--mca mtl ofi --mca btl ofi --mca pml cm --mca prte_silence_shared_fs 1"\
+  --binary "$HOME/build/osu-7.4/c/mpi/pt2pt/standard/osu_latency"\
+  --binary-args "-i 20000" 
+echo
+
+echo "osu_mbw_mr"
+SLURM_OVERLAP=1 SLURM_TASKS_PER_NODE="1(x$SLURM_JOB_NUM_NODES)" \
+  bash "$HOME/ofi_hook_monitor/aggregation/launcher/launcher_multi.sh" \
+  --basedir "/hppfs/work/pn76ni/ge35ber3/ofi_hook_monitor/data/measurements" \
+  --mpirun "$HOME/build/ompi505_monitor_build/bin/mpirun" \
+  --iterations 25 \
+  --mpi-args "--mca mtl ofi --mca btl ofi --mca pml cm --mca prte_silence_shared_fs 1"\
+  --binary "$HOME/build/osu-7.4/c/mpi/pt2pt/standard/osu_mbw_mr"\
+  --binary-args "-i 20000" 
+echo
+
+
+# MOD: uncomment if telegraf doesn't write to a shared filesystem
+# srun -N $SLURM_JOB_NUM_NODES -n $SLURM_JOB_NUM_NODES cp -r \
+#  "/path/to/telegraf_out \
+#  "$MON_OUTDIR"
+killall -s SIGINT -u $USER
+sleep 10
+killall -s SIGKILL -u $USER
+
+
+
+killall -s SIGINT -u $USER
+sleep 10
+killall -s SIGKILL -u $USER

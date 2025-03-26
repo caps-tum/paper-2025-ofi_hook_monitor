@@ -1,0 +1,44 @@
+#!/bin/bash
+
+#SBATCH --job-name=ofi_test
+#SBATCH --partition=test
+#SBATCH --mail-type=NONE
+#SBATCH --mail-user="philipp.friese@tum.de"
+#SBATCH --time=00:01:00
+#SBATCH --account=pn76ni
+#SBATCH --ear=off
+#SBATCH --switches=1
+#SBATCH --export=NONE
+#SBATCH --constraint="work"
+#SBATCH --output=/hppfs/work/pn76ni/ge35ber3/ofi_hook_monitor/data/job/%x_%j.out
+#SBATCH --error=/hppfs/work/pn76ni/ge35ber3/ofi_hook_monitor/data/job/%x_%j.err
+
+module load slurm_setup
+module load parallel
+module load numactl
+module unload intel-mpi
+
+WRAPPER="$HOME/ofi_hook_monitor/aggregation/slurm/wrapper.sh"
+cat > "$WRAPPER" << EOT
+#!/bin/bash
+export SLURM_JOB_ID=$SLURM_JOBID
+export SLURMD_NODENAME=\$(hostname)
+$(which numactl) -C 47 \
+ "$HOME/build/telegraf/telegraf" \
+  --config "$HOME/ofi_hook_monitor/deployment/telegraf_1s.conf"
+EOT
+chmod u+x "$WRAPPER"
+
+mkdir --parents "$WORK_LIST/ofi_hook_monitor/data/monitoring/$SLURM_JOB_ID"
+hostlist=$(scontrol show hostnames $SLURM_NODELIST | awk '{print $1 "opa"}' | tr '\n' ',')
+seq $SLURM_NNODES | parallel -P 1 -S "${hostlist::-1}" "$WRAPPER" &
+
+SLURM_EXPORT_ENV="ALL" SLURM_TASKS_PER_NODE="$SLURM_NTASKS_PER_NODE(x$SLURM_JOB_NUM_NODES)" \
+  "$HOME/build/ompi505_monitor_build/bin/mpirun" \
+  --mca mtl ofi --mca btl ofi --mca pml cm \
+  --mca prte_silence_shared_fs 1 \
+  "$HOME/build/osu-7.4/c/mpi/collective/blocking/osu_bcast"
+
+killall -s SIGINT -u $USER
+sleep 10
+killall -s SIGKILL -u $USER

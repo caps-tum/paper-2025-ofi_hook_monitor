@@ -1,0 +1,586 @@
+Subject: [PATCH] [ofi] remove old code in ofi_test.go
+[ofi] updated readme
+[ofi] remove unused function
+[ofi] remove unused monitoring data
+[ofi] update flags to new format
+[ofi] remove unused dependencies & functionality, add configurable basepath and folder_prefix
+[ofi] add ppid
+[ofi] add linger support
+[ofi] actually use fields_sum
+[ofi] add more monitoring functions
+[ofi] initial commit
+---
+Index: go.mod
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/go.mod b/go.mod
+--- a/go.mod	(revision fbfaba054e62413b6a0a90372281e687d9ff1238)
++++ b/go.mod	(revision a0d7ba80001dffd5ed94b16427773e6f0adf4e34)
+@@ -217,13 +217,35 @@
+ 	gopkg.in/olivere/elastic.v5 v5.0.86
+ 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
+ 	gopkg.in/yaml.v2 v2.4.0
+-	k8s.io/api v0.30.1
+-	k8s.io/apimachinery v0.30.1
+-	k8s.io/client-go v0.30.1
++	k8s.io/api v0.31.0-alpha.2
++	k8s.io/apimachinery v0.31.0-alpha.2
++	k8s.io/client-go v0.31.0-alpha.2
++	k8s.io/cri-api v0.31.0-alpha.2
++	k8s.io/cri-client v0.31.0-alpha.2
+ 	layeh.com/radius v0.0.0-20221205141417-e7fbddd11d68
+ 	modernc.org/sqlite v1.30.0
+ )
+
++require (
++	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
++	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
++	github.com/blang/semver/v4 v4.0.0 // indirect
++	github.com/containerd/cgroups v1.1.0 // indirect
++	github.com/containerd/continuity v0.4.2 // indirect
++	github.com/containerd/fifo v1.1.0 // indirect
++	github.com/containerd/ttrpc v1.2.2 // indirect
++	github.com/containerd/typeurl/v2 v2.1.1 // indirect
++	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
++	github.com/moby/locker v1.0.1 // indirect
++	github.com/moby/sys/mountinfo v0.6.2 // indirect
++	github.com/moby/sys/signal v0.7.0 // indirect
++	github.com/opencontainers/runtime-spec v1.1.0 // indirect
++	github.com/opencontainers/selinux v1.11.0 // indirect
++	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.20.0 // indirect
++	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.20.0 // indirect
++	k8s.io/component-base v0.31.0-alpha.2 // indirect
++)
++
+ require (
+ 	cloud.google.com/go v0.112.2 // indirect
+ 	cloud.google.com/go/auth v0.3.0 // indirect
+@@ -293,7 +315,7 @@
+ 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+ 	github.com/cloudevents/sdk-go/v2 v2.15.2
+ 	github.com/cloudflare/golz4 v0.0.0-20150217214814-ef862a3cdc58 // indirect
+-	github.com/containerd/containerd v1.7.12 // indirect
++	github.com/containerd/containerd v1.7.12
+ 	github.com/containerd/log v0.1.0 // indirect
+ 	github.com/couchbase/gomemcached v0.1.3 // indirect
+ 	github.com/couchbase/goutils v0.1.0 // indirect
+@@ -314,7 +336,7 @@
+ 	github.com/echlebek/timeproxy v1.0.0 // indirect
+ 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
+ 	github.com/felixge/httpsnoop v1.0.4 // indirect
+-	github.com/fxamacker/cbor/v2 v2.6.0 // indirect
++	github.com/fxamacker/cbor/v2 v2.7.0-beta // indirect
+ 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
+ 	github.com/go-asn1-ber/asn1-ber v1.5.5 // indirect
+ 	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
+@@ -476,11 +498,11 @@
+ 	go.opentelemetry.io/otel v1.27.0 // indirect
+ 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
+ 	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
+-	go.opentelemetry.io/otel/trace v1.27.0 // indirect
++	go.opentelemetry.io/otel/trace v1.27.0
+ 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
+ 	go.uber.org/atomic v1.11.0 // indirect
+ 	go.uber.org/multierr v1.11.0 // indirect
+-	go.uber.org/zap v1.24.0 // indirect
++	go.uber.org/zap v1.26.0 // indirect
+ 	golang.org/x/exp v0.0.0-20240529005216-23cca8864a10 // indirect
+ 	golang.org/x/time v0.5.0 // indirect
+ 	golang.org/x/tools v0.21.0 // indirect
+@@ -496,7 +518,7 @@
+ 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 // indirect
+ 	gopkg.in/yaml.v3 v3.0.1 // indirect
+ 	honnef.co/go/tools v0.2.2 // indirect
+-	k8s.io/klog/v2 v2.120.1 // indirect
++	k8s.io/klog/v2 v2.120.1
+ 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
+ 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0 // indirect
+ 	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
+@@ -507,5 +529,5 @@
+ 	modernc.org/token v1.1.0 // indirect
+ 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
+ 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
+-	sigs.k8s.io/yaml v1.3.0 // indirect
++	sigs.k8s.io/yaml v1.4.0 // indirect
+ )
+Index: plugins/inputs/all/ofi.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/plugins/inputs/all/ofi.go b/plugins/inputs/all/ofi.go
+new file mode 100644
+--- /dev/null	(revision a0d7ba80001dffd5ed94b16427773e6f0adf4e34)
++++ b/plugins/inputs/all/ofi.go	(revision a0d7ba80001dffd5ed94b16427773e6f0adf4e34)
+@@ -0,0 +1,5 @@
++//go:build !custom || inputs || inputs.ofi
++
++package all
++
++import _ "github.com/influxdata/telegraf/plugins/inputs/ofi" // register plugin
+Index: plugins/inputs/ofi/README.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/plugins/inputs/ofi/README.md b/plugins/inputs/ofi/README.md
+new file mode 100644
+--- /dev/null	(revision f4c08f128de4c075dc2460aea8f87b9a00bb5cd5)
++++ b/plugins/inputs/ofi/README.md	(revision f4c08f128de4c075dc2460aea8f87b9a00bb5cd5)
+@@ -0,0 +1,98 @@
++# OFI Monitoring Input Plugin
++
++The `ofi` plugin gathers metrics from the `ofi_hook_monitor` hooking provider from libfabric.
++
++Telegraf minimum version: Telegraf 1.32 Plugin minimum tested version: 1.32
++
++## Global configuration options <!-- @/docs/includes/plugin_config.md -->
++
++[CONFIGURATION.md]: ../../../docs/CONFIGURATION.md#plugins
++
++## Configuration
++
++```toml @sample.conf
++[[inputs.ofi]]
++  basepath = "/dev/shm"
++  folder_prefix = "ofi_"
++```
++
++- `basepath` refers to configured basepath for the OFI plugin. Should point to a tmpfs!
++- `folder_prefix` denotes which prefix to search for. Only folders in basepath with matching prefix are considered!
++
++Running `telegraf --usage <plugin-name>` also gives the sample TOML
++configuration.
++
++## Metrics
++
++The gathered metrics represent the data exported by the OFI monitoring provider.
++
++- ofi
++  - tags:
++    - node,
++    - pod,
++    - user,
++    - bucket,
++    - provider,
++    - pid,
++    - ppid,
++    - job_id,
++    - mid,
++  - fields:
++    - mon_recv (unit int),
++    - mon_recvv (unit int),
++    - mon_recvmsg (unit int),
++    - mon_trecv (unit int),
++    - mon_trecvv (unit int),
++    - mon_trecvmsg (unit int),
++    - mon_send (unit int),
++    - mon_sendv (unit int),
++    - mon_sendmsg (unit int),
++    - mon_inject (unit int),
++    - mon_senddata (unit int),
++    - mon_injectdata (unit int),
++    - mon_tsend (unit int),
++    - mon_tsendv (unit int),
++    - mon_tsendmsg (unit int),
++    - mon_tinject (unit int),
++    - mon_tsenddata (unit int),
++    - mon_tinjectdata (unit int),
++    - mon_read (unit int),
++    - mon_readv (unit int),
++    - mon_readmsg (unit int),
++    - mon_write (unit int),
++    - mon_writev (unit int),
++    - mon_writemsg (unit int),
++    - mon_inject_write (unit int),
++    - mon_writedata (unit int),
++    - mon_inject_writedata (unit int),
++    - mon_mr_reg (unit int),
++    - mon_mr_regv (unit int),
++    - mon_mr_regattr (unit int),
++    - mon_cq_read (unit int),
++    - mon_cq_readfrom (unit int),
++    - mon_cq_readerr (unit int),
++    - mon_cq_sread (unit int),
++    - mon_cq_sreadfrom (unit int),
++    - mon_cq_ctx (unit int),
++    - mon_cq_msg_tx (unit int),
++    - mon_cq_msg_rx (unit int),
++    - mon_cq_data_tx (unit int),
++    - mon_cq_data_rx (unit int),
++    - mon_cq_tagged_tx (unit int),
++    - mon_cq_tagged_rx (unit int),
++
++- ofi_sum
++  - same tags and fields as ofi
++
++Measurement "ofi" measures the number of API calls in the current sampling period,
++"ofi_sum" measures the sum of processed data for each call.
++The "bucket" tag can be one of:
++- 0_64
++- 64_512
++- 512_1K
++- 1K_4K
++- 4K_64K
++- 64K_256K
++- 256K_1M
++- 1M_4M
++- 4M_UP
+\ No newline at end of file
+Index: plugins/inputs/ofi/ofi.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/plugins/inputs/ofi/ofi.go b/plugins/inputs/ofi/ofi.go
+new file mode 100644
+--- /dev/null	(revision 8fce3dbe48b600857681bde60d704727e29b6f4a)
++++ b/plugins/inputs/ofi/ofi.go	(revision 8fce3dbe48b600857681bde60d704727e29b6f4a)
+@@ -0,0 +1,146 @@
++//go:generate ../../../tools/readme_config_includer/generator
++package ofi
++
++import (
++	_ "embed"
++	"fmt"
++	"github.com/influxdata/telegraf"
++	"github.com/influxdata/telegraf/plugins/inputs"
++	"os"
++	"strings"
++)
++
++//go:embed sample.conf
++var sampleConfig string
++
++// Ofi struct should be named the same as the Plugin
++type Ofi struct {
++	Basepath     string `toml:"basepath"`
++	FolderPrefix string `toml:"folder_prefix"`
++	// Telegraf logging facility
++	// The exact name is important to allow automatic initialization by telegraf.
++	Log telegraf.Logger `toml:"-"`
++}
++
++type Entry struct {
++	user string
++	host string
++	file string
++	path string
++}
++
++func (*Ofi) SampleConfig() string {
++	return sampleConfig
++}
++
++// Init can be implemented to do one-time processing stuff like initializing variables
++func (m *Ofi) Init() error {
++	if m.Basepath == "" {
++		m.Basepath = "/dev/shm"
++	}
++	m.Basepath = strings.TrimSuffix(m.Basepath, "/")
++
++	if m.FolderPrefix == "" {
++		m.FolderPrefix = "ofi_"
++	}
++
++	return nil
++}
++
++// Gather defines what data the plugin will gather.
++func (m *Ofi) Gather(acc telegraf.Accumulator) error {
++	var entries []Entry
++	var err error
++
++	hostname, err := os.Hostname()
++	if err != nil {
++		m.Log.Errorf("Error getting hostname: %s", err)
++		return err
++	}
++
++	entriesUsers, err := os.ReadDir(m.Basepath)
++	if err != nil {
++		m.Log.Errorf("Error while iterating folder %s: %s\n", m.Basepath, err)
++		return err
++	}
++
++	for _, user := range entriesUsers {
++		if !strings.HasPrefix(user.Name(), m.FolderPrefix) {
++			continue
++		}
++
++		userBasepath := fmt.Sprintf("%s/%s", m.Basepath, user.Name())
++		hosts, _err := os.ReadDir(userBasepath)
++		if _err != nil {
++			m.Log.Errorf("Error while iterating folder %s: %s\n", userBasepath, _err)
++			return _err
++		}
++		for _, host := range hosts {
++			hostBasepath := fmt.Sprintf("%s/%s", userBasepath, host.Name())
++			ofiFiles, __err := os.ReadDir(hostBasepath)
++			if __err != nil {
++				m.Log.Errorf("Error while iterating folder %s: %s\n", hostBasepath, __err)
++				return _err
++			}
++			for _, file := range ofiFiles {
++				entries = append(entries,
++					Entry{
++						user: user.Name(),
++						host: host.Name(),
++						file: file.Name(),
++						path: fmt.Sprintf("%s/%s", hostBasepath, file.Name()),
++					})
++			}
++		}
++	}
++
++	for _, entry := range entries {
++		var data [42]monitor_data
++		err = ExtractData(entry.path, &data, m.Log)
++		if err != nil {
++			m.Log.Errorf("Error while extracting data from %s: %v\n", entry.path, err)
++			continue
++		}
++
++		// format: ppid_pid_mid_jobid_hprovName
++		splits := strings.Split(entry.file, "_")
++		ppid := splits[0]
++		pid := splits[1]
++		mid := splits[2]
++		jobId := splits[3]
++		hprovName := strings.Join(splits[4:], "_")
++
++		for i := range 42 {
++			for j := range 9 {
++				tags := map[string]string{
++					"node":     hostname,
++					"pod":      entry.host,
++					"user":     entry.user,
++					"bucket":   buckets[j],
++					"provider": hprovName,
++					"pid":      pid,
++					"ppid":     ppid,
++					"job_id":   jobId,
++					"mid":      mid,
++				}
++				var fieldsCount = make(map[string]interface{})
++				fieldsCount[functions[i]] = data[i].Count[j]
++				acc.AddCounter("ofi", fieldsCount, tags)
++
++				var fieldsSum = make(map[string]interface{})
++				fieldsSum[functions[i]] = data[i].Sum[j]
++				acc.AddCounter("ofi_sum", fieldsSum, tags)
++			}
++		}
++
++	}
++
++	return nil
++}
++
++// Register the plugin
++func init() {
++	inputs.Add("ofi", func() telegraf.Input {
++		return &Ofi{}
++	})
++}
+Index: plugins/inputs/ofi/ofi_sampler.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/plugins/inputs/ofi/ofi_sampler.go b/plugins/inputs/ofi/ofi_sampler.go
+new file mode 100644
+--- /dev/null	(revision 520eebb98c71ff90d1fc230a7d7cbf6970cca9f8)
++++ b/plugins/inputs/ofi/ofi_sampler.go	(revision 520eebb98c71ff90d1fc230a7d7cbf6970cca9f8)
+@@ -0,0 +1,164 @@
++package ofi
++
++import (
++	"bytes"
++	"encoding/binary"
++	"github.com/influxdata/telegraf"
++	"os"
++	"unsafe"
++)
++
++type monitor_data struct {
++	Count [9]uint64
++	Sum   [9]uint64
++}
++
++var functions []string = []string{
++	"mon_recv",
++	"mon_recvv",
++	"mon_recvmsg",
++	"mon_trecv",
++	"mon_trecvv",
++	"mon_trecvmsg",
++	"mon_send",
++	"mon_sendv",
++	"mon_sendmsg",
++	"mon_inject",
++	"mon_senddata",
++	"mon_injectdata",
++	"mon_tsend",
++	"mon_tsendv",
++	"mon_tsendmsg",
++	"mon_tinject",
++	"mon_tsenddata",
++	"mon_tinjectdata",
++	"mon_read",
++	"mon_readv",
++	"mon_readmsg",
++	"mon_write",
++	"mon_writev",
++	"mon_writemsg",
++	"mon_inject_write",
++	"mon_writedata",
++	"mon_inject_writedata",
++	"mon_mr_reg",
++	"mon_mr_regv",
++	"mon_mr_regattr",
++	"mon_cq_read",
++	"mon_cq_readfrom",
++	"mon_cq_readerr",
++	"mon_cq_sread",
++	"mon_cq_sreadfrom",
++	"mon_cq_ctx",
++	"mon_cq_msg_tx",
++	"mon_cq_msg_rx",
++	"mon_cq_data_tx",
++	"mon_cq_data_rx",
++	"mon_cq_tagged_tx",
++	"mon_cq_tagged_rx",
++}
++
++// if you add entries here, do not forget to update the size of the [52]monitor_data entries!
++
++var buckets []string = []string{
++	"0_64",
++	"64_512",
++	"512_1K",
++	"1K_4K",
++	"4K_64K",
++	"64K_256K",
++	"256K_1M",
++	"1M_4M",
++	"4M_UP",
++}
++
++func extract(file *os.File, data *[42]monitor_data, flags uint8, stat os.FileInfo) error {
++	_, err := file.Seek(0, 0)
++	if err != nil {
++		return err
++	}
++
++	rawData := make([]byte, unsafe.Sizeof(*data))
++	_, err = file.Read(rawData)
++	if err != nil {
++		return err
++	}
++
++	err = binary.Read(bytes.NewBuffer(rawData), binary.LittleEndian, data)
++	if err != nil {
++		return err
++	}
++
++	_, err = file.Seek(stat.Size()-1, 0)
++	if err != nil {
++		return err
++	}
++
++	newFlags := flags | 0b1
++	outBytes := new(bytes.Buffer)
++	err = binary.Write(outBytes, binary.LittleEndian, newFlags)
++	if err != nil {
++		return err
++	}
++	_, err = file.Write(outBytes.Bytes())
++	if err != nil {
++		return err
++	}
++	err = file.Sync()
++	if err != nil {
++		return err
++	}
++
++	return nil
++}
++
++func ExtractData(path string, data *[42]monitor_data, logger telegraf.Logger) error {
++	file, err := os.OpenFile(path, os.O_RDWR, 0)
++	if err != nil {
++		return err
++	}
++
++	stat, err := file.Stat()
++	if err != nil {
++		return err
++	}
++
++	_, err = file.Seek(stat.Size()-1, 0)
++	if err != nil {
++		return err
++	}
++
++	rawFlags := make([]byte, 1)
++	_, err = file.Read(rawFlags)
++	if err != nil {
++		return err
++	}
++
++	var flags uint8
++	err = binary.Read(bytes.NewBuffer(rawFlags), binary.LittleEndian, &flags)
++	if err != nil {
++		return err
++	}
++
++	requestPending := flags & 0b1
++	if requestPending == 0 {
++		err = extract(file, data, flags, stat)
++		if err != nil {
++			return err
++		}
++	}
++
++	err = file.Close()
++	if err != nil {
++		return err
++	}
++
++	fin := (flags & 0b10) >> 1
++	if fin == 1 {
++		err = os.Remove(path)
++		if err != nil {
++			return err
++		}
++	}
++	return nil
++}
+Index: plugins/inputs/ofi/ofi_test.go
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/plugins/inputs/ofi/ofi_test.go b/plugins/inputs/ofi/ofi_test.go
+new file mode 100644
+--- /dev/null	(revision 169b81340d207998b7cd119072910a2ee647aa68)
++++ b/plugins/inputs/ofi/ofi_test.go	(revision 169b81340d207998b7cd119072910a2ee647aa68)
+@@ -0,0 +1,1 @@
++package ofi
+Index: plugins/inputs/ofi/sample.conf
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/plugins/inputs/ofi/sample.conf b/plugins/inputs/ofi/sample.conf
+new file mode 100644
+--- /dev/null	(revision f4c08f128de4c075dc2460aea8f87b9a00bb5cd5)
++++ b/plugins/inputs/ofi/sample.conf	(revision f4c08f128de4c075dc2460aea8f87b9a00bb5cd5)
+@@ -0,0 +1,3 @@
++[[inputs.ofi]]
++  basepath = "/dev/shm"
++  folder_prefix = "ofi_"
+\ No newline at end of file

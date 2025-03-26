@@ -1,0 +1,1615 @@
+Subject: [PATCH] added clarification to copyright statement
+added missing perf/include path to makefile
+remove last sync feature remove domain ops
+remove old double-buffer bits
+fix wrong format string
+update parsing of SLURM_JOB_ID
+minor cleanup
+add FI_HOOK_MONITOR_SYNC_THRESHOLD_SEC, rework env parameter parsing
+remove unused mon_report.c
+add SLURM_JOB_ID to shm_name
+add missing mkdir for FI_HOOK_MONITOR_BASEPATH, set access to 0777
+add ppid to file name, update filemask to 0755
+add linger support
+add domain op hooks
+add reader.py
+clean up hook_monitor.c
+refactor output file logic
+update monitorng logic to single-buffer approach
+update monitor PoC
+first prototype implementation
+initial copy of hook/profile to hook/monitor
+---
+Index: Makefile.am
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Makefile.am b/Makefile.am
+--- a/Makefile.am	(revision 159219639b7fd69d140892120121bbb4d694e295)
++++ b/Makefile.am	(revision a3f68787887f2dc0e5b04dd453db9dd814ad833b)
+@@ -481,6 +481,7 @@
+ include prov/hook/perf/Makefile.include
+ include prov/hook/trace/Makefile.include
+ include prov/hook/profile/Makefile.include
++include prov/hook/monitor/Makefile.include
+ include prov/hook/hook_debug/Makefile.include
+ include prov/hook/hook_hmem/Makefile.include
+ include prov/hook/dmabuf_peer_mem/Makefile.include
+Index: configure.ac
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac	(revision 159219639b7fd69d140892120121bbb4d694e295)
++++ b/configure.ac	(revision a3f68787887f2dc0e5b04dd453db9dd814ad833b)
+@@ -1021,6 +1021,7 @@
+ FI_PROVIDER_SETUP([perf])
+ FI_PROVIDER_SETUP([trace])
+ FI_PROVIDER_SETUP([profile])
++FI_PROVIDER_SETUP([monitor])
+ FI_PROVIDER_SETUP([hook_debug])
+ FI_PROVIDER_SETUP([hook_hmem])
+ FI_PROVIDER_SETUP([dmabuf_peer_mem])
+Index: include/ofi_hook.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/include/ofi_hook.h b/include/ofi_hook.h
+--- a/include/ofi_hook.h	(revision 159219639b7fd69d140892120121bbb4d694e295)
++++ b/include/ofi_hook.h	(revision a3f68787887f2dc0e5b04dd453db9dd814ad833b)
+@@ -64,6 +64,7 @@
+ 	HOOK_DEBUG,
+ 	HOOK_HMEM,
+ 	HOOK_DMABUF_PEER_MEM,
++	HOOK_MONITOR
+ };
+
+
+Index: include/ofi_prov.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/include/ofi_prov.h b/include/ofi_prov.h
+--- a/include/ofi_prov.h	(revision 159219639b7fd69d140892120121bbb4d694e295)
++++ b/include/ofi_prov.h	(revision 3131a0359de850592b13cf16efbd662119e2a515)
+@@ -259,6 +259,16 @@
+ #  define HOOK_PROFILE_INIT NULL
+ #endif
+
++#if (HAVE_MONITOR) && (HAVE_MONITOR_DL)
++#  define HOOK_MONITOR_INI FI_EXT_INI
++#  define HOOK_MONITOR_INIT NULL
++#elif (HAVE_MONITOR)
++#  define HOOK_MONITOR_INI INI_SIG(fi_hook_monitor_ini)
++#  define HOOK_MONITOR_INIT fi_hook_monitor_ini()
++HOOK_MONITOR_INI ;
++#else
++#  define HOOK_MONITOR_INIT NULL
++#endif
+
+ #if (HAVE_HOOK_DEBUG) && (HAVE_HOOK_DEBUG_DL)
+ #  define HOOK_DEBUG_INI FI_EXT_INI
+Index: prov/hook/monitor/Makefile.include
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/prov/hook/monitor/Makefile.include b/prov/hook/monitor/Makefile.include
+new file mode 100644
+--- /dev/null	(revision bcbc6ae9b8600c4078db5db7009556edbce27341)
++++ b/prov/hook/monitor/Makefile.include	(revision bcbc6ae9b8600c4078db5db7009556edbce27341)
+@@ -0,0 +1,32 @@
++if HAVE_MONITOR
++
++_monitorhook_files = \
++        prov/hook/monitor/src/hook_monitor.c
++
++_monitorhook_headers = \
++        prov/hook/monitor/include/hook_monitor.h
++
++if HAVE_MONITOR_DL
++pkglib_LTLIBRARIES += libmonitor-fi.la
++libmonitor_fi_la_SOURCES = $(_monitorhook_files) \
++        $(_monitorhook_headers) \
++        $(common_hook_srcs) \
++        $(common_srcs)
++libmonitor_fi_la_CPPFLAGS = $(AM_CPPFLAGS) \
++        -I$(top_srcdir)/prov/hook/include  \
++        -I$(top_srcdir)/prov/hook/perf/include \
++        -I$(top_srcdir)/prov/hook/monitor/include
++libmonitor_fi_la_LIBADD = $(linkback) $(monitorhook_shm_LIBS)
++libmonitor_fi_la_LDFLAGS = -module -avoid-version -shared -export-dynamic
++libmonitor_fi_la_DEPENDENCIES = $(linkback)
++
++else !HAVE_MONITOR_DL
++
++src_libfabric_la_SOURCES += $(_monitorhook_files) $(_monitorhook_headers)
++src_libfabric_la_LIBADD	+=	$(monitorhook_shm_LIBS)
++
++endif !HAVE_MONITOR_DL
++
++src_libfabric_la_CPPFLAGS += -I$(top_srcdir)/prov/hook/monitor/include
++
++endif HAVE_MONITOR
+Index: prov/hook/monitor/configure.m4
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/prov/hook/monitor/configure.m4 b/prov/hook/monitor/configure.m4
+new file mode 100644
+--- /dev/null	(revision a3f68787887f2dc0e5b04dd453db9dd814ad833b)
++++ b/prov/hook/monitor/configure.m4	(revision a3f68787887f2dc0e5b04dd453db9dd814ad833b)
+@@ -0,0 +1,16 @@
++dnl Configury specific to the libfabrics monitor hooking provider
++
++dnl Called to configure this provider
++dnl
++dnl Arguments:
++dnl
++dnl $1: action if configured successfully
++dnl $2: action if not configured successfully
++dnl
++
++AC_DEFUN([FI_MONITOR_CONFIGURE],[
++    # Determine if we can support the monitor hooking provider
++    monitor_happy=0
++    AS_IF([test x"$enable_monitor" != x"no"], [monitor_happy=1])
++    AS_IF([test $monitor_happy -eq 1], [$1], [$2])
++])
+Index: prov/hook/monitor/include/hook_monitor.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/prov/hook/monitor/include/hook_monitor.h b/prov/hook/monitor/include/hook_monitor.h
+new file mode 100644
+--- /dev/null	(revision 04dfff14d07920e6276ccc73115ce5ef7e31b354)
++++ b/prov/hook/monitor/include/hook_monitor.h	(revision 04dfff14d07920e6276ccc73115ce5ef7e31b354)
+@@ -0,0 +1,157 @@
++/*
++ * Copyright notice of original prov/hook/profile code, which this monitoring plugin extends
++ *
++ * Copyright (c) 2018-2023 Intel Corporation. All rights reserved.
++ *
++ * This software is available to you under a choice of one of two
++ * licenses.  You may choose to be licensed under the terms of the GNU
++ * General Public License (GPL); Version 2, available from the file
++ * COPYING in the main directory of this source tree, or the
++ * BSD license below:
++ *
++ *     Redistribution and use in source and binary forms, with or
++ *     without modification, are permitted provided that the following
++ *     conditions are met:
++ *
++ *      - Redistributions of source code must retain the above
++ *        copyright notice, this list of conditions and the following
++ *        disclaimer.
++ *
++ *      - Redistributions in binary form must reproduce the above
++ *        copyright notice, this list of conditions and the following
++ *        disclaimer in the documentation and/or other materials
++ *        provided with the distribution.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#ifndef _HOOK_MONITOR_H_
++#define _HOOK_MONITOR_H_
++
++#include "ofi_hook.h"
++#include "ofi.h"
++
++#define MON_IGNORE_SIZE  0
++#define MON_TICK_MAX_DEFAULT 1024
++#define MON_LINGER_DEFAULT 0
++#define MON_SYNC_THRESHOLD_SEC_DEFAULT 10
++#define MON_DEFAULT_STEM "/dev/shm/ofi"
++
++#define MONITOR_APIS(DECL)  \
++	DECL(mon_recv),  \
++	DECL(mon_recvv), \
++	DECL(mon_recvmsg), \
++	DECL(mon_trecv), \
++	DECL(mon_trecvv), \
++	DECL(mon_trecvmsg), \
++	DECL(mon_send), \
++	DECL(mon_sendv), \
++	DECL(mon_sendmsg), \
++	DECL(mon_inject),  \
++	DECL(mon_senddata),  \
++	DECL(mon_injectdata),  \
++	DECL(mon_tsend),  \
++	DECL(mon_tsendv),  \
++	DECL(mon_tsendmsg),  \
++	DECL(mon_tinject),	 \
++	DECL(mon_tsenddata),  \
++	DECL(mon_tinjectdata),  \
++	DECL(mon_read),  \
++	DECL(mon_readv),  \
++	DECL(mon_readmsg),  \
++	DECL(mon_write),  \
++	DECL(mon_writev),  \
++	DECL(mon_writemsg),  \
++	DECL(mon_inject_write),  \
++	DECL(mon_writedata),  \
++	DECL(mon_inject_writedata),  \
++	DECL(mon_mr_reg),  \
++	DECL(mon_mr_regv),  \
++	DECL(mon_mr_regattr),  \
++	DECL(mon_cq_read),  \
++	DECL(mon_cq_readfrom),	 \
++	DECL(mon_cq_readerr),  \
++	DECL(mon_cq_sread),  \
++	DECL(mon_cq_sreadfrom),  \
++	DECL(mon_cq_ctx),  \
++	DECL(mon_cq_msg_tx),  \
++	DECL(mon_cq_msg_rx),  \
++	DECL(mon_cq_data_tx),	\
++	DECL(mon_cq_data_rx),	\
++	DECL(mon_cq_tagged_tx),  \
++	DECL(mon_cq_tagged_rx),    \
++        DECL(mon_av_open),  \
++	DECL(mon_cq_open),  \
++	DECL(mon_endpoint),  \
++	DECL(mon_scalable_ep),  \
++	DECL(mon_cntr_open),   \
++        DECL(mon_poll_open),  \
++	DECL(mon_stx_ctx),  \
++	DECL(mon_srx_ctx),  \
++	DECL(mon_query_atomic),  \
++	DECL(mon_query_collective),  \
++	DECL(mon_api_size)
++
++enum profile_api_counters {
++	MONITOR_APIS(OFI_ENUM_VAL)
++};
++
++enum mon_size_bucket {
++	MON_SIZE_0_64 = 0,
++	MON_SIZE_64_512,
++	MON_SIZE_512_1K,
++	MON_SIZE_1K_4K,
++	MON_SIZE_4K_64K,
++	MON_SIZE_64K_256K,
++	MON_SIZE_256K_1M,
++	MON_SIZE_1M_4M,
++	MON_SIZE_4M_UP,
++	MON_SIZE_MAX
++};
++
++struct monitor_data {
++	uint64_t count[MON_SIZE_MAX];
++	uint64_t sum[MON_SIZE_MAX];
++};
++
++struct monitor_context {
++	const struct fi_provider *hprov;
++	struct monitor_data data[mon_api_size];
++	unsigned int tick;
++	unsigned int tick_max;
++	time_t last_sync;
++	char* share;
++	/*
++	Layout:
++	| <buffer 1 > |
++	| <buffer 2 > |
++	| <flag>      |
++
++	Flag |76543210|
++	- 0: data flush request
++	- 1: fin
++	- rest: unused
++
++	*/
++	size_t share_size;
++	char shm_name[512];
++	bool is_enabled;
++	bool linger;
++	unsigned int sync_threshold_sec;
++};
++
++struct monitor_fabric {
++	struct hook_fabric fabric_hook;
++	struct monitor_context mon_ctx;
++};
++
++void mon_report(const struct fi_provider *hprov,  struct monitor_data *data);
++
++#endif /* _HOOK_MONITOR_H_ */
+Index: prov/hook/monitor/src/hook_monitor.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/prov/hook/monitor/src/hook_monitor.c b/prov/hook/monitor/src/hook_monitor.c
+new file mode 100644
+--- /dev/null	(revision 04dfff14d07920e6276ccc73115ce5ef7e31b354)
++++ b/prov/hook/monitor/src/hook_monitor.c	(revision 04dfff14d07920e6276ccc73115ce5ef7e31b354)
+@@ -0,0 +1,1106 @@
++/*
++ * Copyright notice of original prov/hook/profile code, which this monitoring plugin extends
++ *
++ * Copyright (c) 2018-2023 Intel Corporation. All rights reserved.
++ *
++ * This software is available to you under a choice of one of two
++ * licenses.  You may choose to be licensed under the terms of the GNU
++ * General Public License (GPL) Version 2, available from the file
++ * COPYING in the main directory of this source tree, or the
++ * BSD license below:
++ *
++ *     Redistribution and use in source and binary forms, with or
++ *     without modification, are permitted provided that the following
++ *     conditions are met:
++ *
++ *      - Redistributions of source code must retain the above
++ *        copyright notice, this list of conditions and the following
++ *        disclaimer.
++ *
++ *      - Redistributions in binary form must reproduce the above
++ *        copyright notice, this list of conditions and the following
++ *        disclaimer in the documentation and/or other materials
++ *        provided with the distribution.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
++ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
++ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
++#include "ofi_hook.h"
++#include "ofi_prov.h"
++#include "ofi_iov.h"
++#include "hook_prov.h"
++
++#include "hook_monitor.h"
++
++#include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++
++static inline struct monitor_context *monitor_ctx(struct hook_ep *ep)
++{
++	return &container_of(ep->domain->fabric, struct monitor_fabric,
++	                     fabric_hook)->mon_ctx;
++}
++
++static inline struct monitor_context *monitor_ctx_cq(struct hook_cq *cq)
++{
++	return &container_of(cq->domain->fabric, struct monitor_fabric,
++	                     fabric_hook)->mon_ctx;
++}
++
++static inline struct monitor_context *monitor_ctx_domain(struct hook_domain *dom)
++{
++	return &container_of(dom->fabric, struct monitor_fabric,
++	                     fabric_hook)->mon_ctx;
++}
++
++static inline int mon_size_bucket(size_t len)
++{
++	if (len <= 64)
++		return MON_SIZE_0_64;
++	if (len <= 512)
++		return MON_SIZE_64_512;
++	if (len <= 1024)
++		return MON_SIZE_512_1K;
++	if (len <= 4096)
++		return MON_SIZE_1K_4K;
++	if (len <= 65536)      // 64K
++		return MON_SIZE_4K_64K;
++	if (len <= 0x40000)    // 256K
++		return MON_SIZE_64K_256K;
++	if (len <= 0x100000)   // 1M
++		return MON_SIZE_256K_1M;
++	if (len <= 0x400000)   // 4M
++		return MON_SIZE_1M_4M;
++	else
++		return MON_SIZE_4M_UP;
++}
++
++static bool
++get_cq_unknown_entry(void *buf, int idx, int *group, uint64_t *len)
++{
++	return false;
++}
++
++static bool
++get_cq_context_entry(void *buf, int idx, int *cntr, uint64_t *len)
++{
++	*cntr = mon_cq_ctx;
++	*len = MON_IGNORE_SIZE;
++
++	return true;
++}
++static bool
++get_cq_msg_entry(void *buf, int idx, int *cntr, uint64_t *len)
++{
++	struct fi_cq_msg_entry *entry = (struct fi_cq_msg_entry *)buf;
++
++	if (entry[idx].flags & FI_RECV) {
++		*len = entry[idx].len;
++		*cntr = mon_cq_msg_rx;
++	} else if (entry[idx].flags & FI_SEND) {
++		*len = MON_IGNORE_SIZE;
++		*cntr = mon_cq_msg_tx;
++	} else {
++		return false;
++	}
++
++	return true;
++}
++static bool
++get_cq_data_entry(void *buf, int idx, int *cntr, uint64_t *len)
++{
++	struct fi_cq_data_entry *entry = (struct fi_cq_data_entry *)buf;
++
++	if (entry[idx].flags & FI_RECV) {
++		*len = entry[idx].len;
++		*cntr = mon_cq_data_rx;
++	} else if (entry[idx].flags & FI_SEND) {
++		*len = MON_IGNORE_SIZE;
++		*cntr = mon_cq_data_tx;
++	} else {
++		return false;
++	}
++
++	return true;
++}
++static bool
++get_cq_tagged_entry(void *buf, int idx, int *cntr, uint64_t *len)
++{
++	struct fi_cq_tagged_entry *entry = (struct fi_cq_tagged_entry *)buf;
++
++	if (entry[idx].flags & FI_RECV) {
++		*len = entry[idx].len;
++		*cntr = mon_cq_tagged_rx;
++	} else if (entry[idx].flags & FI_SEND) {
++		*len = MON_IGNORE_SIZE;
++		*cntr = mon_cq_tagged_tx;
++	} else {
++		return false;
++	}
++
++	return true;
++}
++
++static bool (*get_cq_entry[])(void *buf, int idx, int *cntr, uint64_t *len) = {
++	get_cq_unknown_entry,
++	get_cq_context_entry,
++	get_cq_msg_entry,
++	get_cq_data_entry,
++	get_cq_tagged_entry
++};
++
++static int
++mon_flush(struct monitor_context *ctx) {
++	uint8_t *flags = (uint8_t*)(ctx->share + ctx->share_size-sizeof(uint8_t));
++	bool request = *flags & 0b1;
++	if (request) {
++		memcpy(ctx->share, ctx->data, sizeof (ctx->data));
++		*flags ^= 0b1; // clear request flag
++
++		memset(ctx->data, 0, sizeof (ctx->data));
++		return 1;
++	}
++
++	return 0;
++}
++
++static inline void
++mon_add_cntr(struct monitor_context *ctx, int cntr, int index, size_t size) {
++	ctx->data[cntr].count[index]++;
++	if (size != MON_IGNORE_SIZE) {
++		ctx->data[cntr].sum[index] += size;
++	}
++	ctx->tick++;
++	if (ctx->tick >= ctx->tick_max) {
++		if (mon_flush(ctx)) {
++			ctx->tick = 0;
++			memset(&ctx->data, 0, sizeof (ctx->data));
++		}
++	}
++}
++
++static inline void
++mon_add_cq_cntr(struct monitor_context *ctx, int cntr,
++                 enum fi_cq_format format, void *buf, int ret)
++{
++	uint64_t len;
++	for (int i = 0; i < ret; i++) {
++		if (get_cq_entry[format](buf, i, &cntr, &len))
++			mon_add_cntr(ctx, cntr, mon_size_bucket(len), len);
++	}
++}
++
++/*
++ * APIs
++ */
++static ssize_t
++monitor_recv(struct fid_ep *ep, void *buf, size_t len, void *desc,
++             fi_addr_t src_addr, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_recv(myep->hep, buf, len, desc, src_addr, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_recv, 0, MON_IGNORE_SIZE);
++	}
++	return ret;
++}
++
++static ssize_t
++monitor_recvv(struct fid_ep *ep, const struct iovec *iov, void **desc,
++               size_t count, fi_addr_t src_addr, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_recvv(myep->hep, iov, desc, count, src_addr, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_recvv, 0, MON_IGNORE_SIZE);
++	}
++	return ret;
++}
++
++static ssize_t
++monitor_recvmsg(struct fid_ep *ep, const struct fi_msg *msg, uint64_t flags)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_recvmsg(myep->hep, msg, flags);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_recvmsg, 0, MON_IGNORE_SIZE);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_send(struct fid_ep *ep, const void *buf, size_t len, void *desc,
++              fi_addr_t dest_addr, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_send(myep->hep, buf, len, desc, dest_addr, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_send,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_sendv(struct fid_ep *ep, const struct iovec *iov, void **desc,
++               size_t count, fi_addr_t dest_addr, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_sendv(myep->hep, iov, desc, count, dest_addr, context);
++	if (!ret) {
++		len = ofi_total_iov_len(iov, count);
++		mon_add_cntr(monitor_ctx(myep), mon_sendv,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_sendmsg(struct fid_ep *ep, const struct fi_msg *msg, uint64_t flags)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_sendmsg(myep->hep, msg, flags);
++	if (!ret) {
++		len = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
++		mon_add_cntr(monitor_ctx(myep), mon_sendmsg,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_inject(struct fid_ep *ep, const void *buf, size_t len,
++                fi_addr_t dest_addr)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_inject(myep->hep, buf, len, dest_addr);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_inject,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_senddata(struct fid_ep *ep, const void *buf, size_t len, void *desc,
++                  uint64_t data, fi_addr_t dest_addr, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_senddata(myep->hep, buf, len, desc, data, dest_addr, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_senddata,
++		              mon_size_bucket(len), len);
++
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_injectdata(struct fid_ep *ep, const void *buf, size_t len,
++                    uint64_t data, fi_addr_t dest_addr)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_injectdata(myep->hep, buf, len, data, dest_addr);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_injectdata,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static struct fi_ops_msg monitor_msg_ops = {
++	.size = sizeof(struct fi_ops_msg),
++	.recv = monitor_recv,
++	.recvv = monitor_recvv,
++	.recvmsg = monitor_recvmsg,
++	.send = monitor_send,
++	.sendv = monitor_sendv,
++	.sendmsg = monitor_sendmsg,
++	.inject = monitor_inject,
++	.senddata = monitor_senddata,
++	.injectdata = monitor_injectdata,
++};
++
++
++static ssize_t
++monitor_read(struct fid_ep *ep, void *buf, size_t len, void *desc,
++              fi_addr_t src_addr, uint64_t addr, uint64_t key, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_read(myep->hep, buf, len, desc, src_addr, addr, key, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_read,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_readv(struct fid_ep *ep, const struct iovec *iov, void **desc,
++               size_t count, fi_addr_t src_addr, uint64_t addr,
++               uint64_t key, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_readv(myep->hep, iov, desc, count, src_addr,
++	               addr, key, context);
++	if (!ret) {
++		len = ofi_total_iov_len(iov, count);
++		mon_add_cntr(monitor_ctx(myep), mon_readv,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_readmsg(struct fid_ep *ep, const struct fi_msg_rma *msg,
++                 uint64_t flags)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_readmsg(myep->hep, msg, flags);
++	if (!ret) {
++		len = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
++		mon_add_cntr(monitor_ctx(myep), mon_readmsg,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_write(struct fid_ep *ep, const void *buf, size_t len, void *desc,
++               fi_addr_t dest_addr, uint64_t addr, uint64_t key, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_write(myep->hep, buf, len, desc, dest_addr, addr, key, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_write,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_writev(struct fid_ep *ep, const struct iovec *iov, void **desc,
++                size_t count, fi_addr_t dest_addr, uint64_t addr,
++                uint64_t key, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_writev(myep->hep, iov, desc, count, dest_addr,
++	                addr, key, context);
++	if (!ret) {
++		len =  ofi_total_iov_len(iov, count);
++		mon_add_cntr(monitor_ctx(myep), mon_writev,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_writemsg(struct fid_ep *ep, const struct fi_msg_rma *msg,
++                  uint64_t flags)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_writemsg(myep->hep, msg, flags);
++	if (!ret) {
++		len =  ofi_total_iov_len(msg->msg_iov, msg->iov_count);
++		mon_add_cntr(monitor_ctx(myep), mon_writemsg,
++		              mon_size_bucket(len), len);
++	}
++	return ret;
++}
++
++static ssize_t
++monitor_inject_write(struct fid_ep *ep, const void *buf, size_t len,
++                      fi_addr_t dest_addr, uint64_t addr, uint64_t key)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_inject_write(myep->hep, buf, len, dest_addr, addr, key);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_inject_write,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_writedata(struct fid_ep *ep, const void *buf, size_t len, void *desc,
++		   uint64_t data, fi_addr_t dest_addr, uint64_t addr,
++		   uint64_t key, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_writedata(myep->hep, buf, len, desc, data,
++	                   dest_addr, addr, key, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_writedata,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_inject_writedata(struct fid_ep *ep, const void *buf, size_t len,
++                          uint64_t data, fi_addr_t dest_addr,
++                          uint64_t addr, uint64_t key)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_inject_writedata(myep->hep, buf, len, data, dest_addr,
++	                          addr, key);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_injectdata,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static struct fi_ops_rma monitor_rma_ops = {
++	.size = sizeof(struct fi_ops_rma),
++	.read = monitor_read,
++	.readv = monitor_readv,
++	.readmsg = monitor_readmsg,
++	.write = monitor_write,
++	.writev = monitor_writev,
++	.writemsg = monitor_writemsg,
++	.inject = monitor_inject_write,
++	.writedata = monitor_writedata,
++	.injectdata = monitor_inject_writedata,
++};
++
++
++static ssize_t
++monitor_trecv(struct fid_ep *ep, void *buf, size_t len, void *desc,
++               fi_addr_t src_addr, uint64_t tag, uint64_t ignore,
++               void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_trecv(myep->hep, buf, len, desc, src_addr, tag, ignore, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_trecv, 0, MON_IGNORE_SIZE);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_trecvv(struct fid_ep *ep, const struct iovec *iov, void **desc,
++                size_t count, fi_addr_t src_addr, uint64_t tag,
++                uint64_t ignore, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_trecvv(myep->hep, iov, desc, count, src_addr,
++	                tag, ignore, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_trecvv, 0, MON_IGNORE_SIZE);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_trecvmsg(struct fid_ep *ep, const struct fi_msg_tagged *msg,
++                  uint64_t flags)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_trecvmsg(myep->hep, msg, flags);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_trecvmsg, 0, MON_IGNORE_SIZE);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_tsend(struct fid_ep *ep, const void *buf, size_t len, void *desc,
++               fi_addr_t dest_addr, uint64_t tag, void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_tsend(myep->hep, buf, len, desc, dest_addr, tag, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_tsend,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_tsendv(struct fid_ep *ep, const struct iovec *iov, void **desc,
++                size_t count, fi_addr_t dest_addr, uint64_t tag,
++                void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_tsendv(myep->hep, iov, desc, count, dest_addr, tag, context);
++	if (!ret) {
++		len = ofi_total_iov_len(iov, count);
++		mon_add_cntr(monitor_ctx(myep), mon_tsendv,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_tsendmsg(struct fid_ep *ep, const struct fi_msg_tagged *msg,
++                  uint64_t flags)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	size_t len;
++	ssize_t ret;
++
++	ret = fi_tsendmsg(myep->hep, msg, flags);
++	if (!ret) {
++		len = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
++		mon_add_cntr(monitor_ctx(myep), mon_tsendmsg,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_tinject(struct fid_ep *ep, const void *buf, size_t len,
++                 fi_addr_t dest_addr, uint64_t tag)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_tinject(myep->hep, buf, len, dest_addr, tag);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_tinject,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_tsenddata(struct fid_ep *ep, const void *buf, size_t len, void *desc,
++                   uint64_t data, fi_addr_t dest_addr, uint64_t tag,
++                   void *context)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_tsenddata(myep->hep, buf, len, desc, data,
++	                   dest_addr, tag, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_tsenddata,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static ssize_t
++monitor_tinjectdata(struct fid_ep *ep, const void *buf, size_t len,
++                     uint64_t data, fi_addr_t dest_addr, uint64_t tag)
++{
++	struct hook_ep *myep = container_of(ep, struct hook_ep, ep);
++	ssize_t ret;
++
++	ret = fi_tinjectdata(myep->hep, buf, len, data, dest_addr, tag);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx(myep), mon_tinjectdata,
++		              mon_size_bucket(len), len);
++	}
++
++	return ret;
++}
++
++static struct fi_ops_tagged monitor_tagged_ops = {
++	.size = sizeof(struct fi_ops_tagged),
++	.recv = monitor_trecv,
++	.recvv = monitor_trecvv,
++	.recvmsg = monitor_trecvmsg,
++	.send = monitor_tsend,
++	.sendv = monitor_tsendv,
++	.sendmsg = monitor_tsendmsg,
++	.inject = monitor_tinject,
++	.senddata = monitor_tsenddata,
++	.injectdata = monitor_tinjectdata,
++};
++
++static ssize_t monitor_cq_read(struct fid_cq *cq, void *buf, size_t count)
++{
++	struct hook_cq *mycq = container_of(cq, struct hook_cq, cq);
++	ssize_t ret;
++
++	ret = fi_cq_read(mycq->hcq, buf, count);
++	if (ret>0) {
++		mon_add_cq_cntr(monitor_ctx_cq(mycq), mon_cq_read,
++		                 mycq->format, buf, ret);
++	}
++	return ret;
++}
++
++static ssize_t
++monitor_cq_readfrom(struct fid_cq *cq, void *buf, size_t count, fi_addr_t *src_addr)
++{
++	struct hook_cq *mycq = container_of(cq, struct hook_cq, cq);
++	ssize_t ret;
++
++	ret = fi_cq_readfrom(mycq->hcq, buf, count, src_addr);
++	if (ret>0) {
++		mon_add_cq_cntr(monitor_ctx_cq(mycq), mon_cq_readfrom,
++		                 mycq->format, buf, ret);
++	}
++
++	return ret;
++}
++static ssize_t
++monitor_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf, uint64_t flags)
++{
++	struct hook_cq *mycq = container_of(cq, struct hook_cq, cq);
++	ssize_t ret;
++
++	ret = fi_cq_readerr(mycq->hcq, buf, flags);
++
++	return ret;
++}
++
++static ssize_t
++monitor_cq_sread(struct fid_cq *cq, void *buf, size_t count,
++		  const void *cond, int timeout)
++{
++	struct hook_cq *mycq = container_of(cq, struct hook_cq, cq);
++	ssize_t ret;
++
++	ret = fi_cq_sread(mycq->hcq, buf, count, cond, timeout);
++	if (ret > 0) {
++		mon_add_cq_cntr(monitor_ctx_cq(mycq), mon_cq_sread,
++		                 mycq->format, buf, ret);
++	}
++	return ret;
++}
++
++static ssize_t
++monitor_cq_sreadfrom(struct fid_cq *cq, void *buf, size_t count,
++		  fi_addr_t *src_addr, const void *cond, int timeout)
++{
++	struct hook_cq *mycq = container_of(cq, struct hook_cq, cq);
++	ssize_t ret;
++
++	ret = fi_cq_sreadfrom(mycq->hcq, buf, count, src_addr, cond, timeout);
++	if (ret > 0) {
++		mon_add_cq_cntr(monitor_ctx_cq(mycq), mon_cq_sreadfrom,
++		                 mycq->format, buf, ret);
++	}
++	return ret;
++}
++
++static int monitor_cq_signal(struct fid_cq *cq)
++{
++	struct hook_cq *mycq = container_of(cq, struct hook_cq, cq);
++	int ret;
++
++	ret = fi_cq_signal(mycq->hcq);
++	return ret;
++}
++
++struct fi_ops_cq monitor_cq_ops = {
++	.size = sizeof(struct fi_ops_cq),
++	.read = monitor_cq_read,
++	.readfrom = monitor_cq_readfrom,
++	.readerr = monitor_cq_readerr,
++	.sread = monitor_cq_sread,
++	.sreadfrom = monitor_cq_sreadfrom,
++	.signal = monitor_cq_signal,
++	.strerror = hook_cq_strerror,
++};
++
++static int
++monitor_mr_reg(struct fid *fid, const void *buf, size_t len,
++               uint64_t access, uint64_t offset, uint64_t requested_key,
++               uint64_t flags, struct fid_mr **mr, void *context)
++{
++	struct hook_domain *dom = container_of(fid, struct hook_domain, domain.fid);
++	int ret;
++
++	ret = fi_mr_reg(dom->hdomain, buf, len, access, offset, requested_key,
++					flags, mr, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx_domain(dom), mon_mr_reg,
++		              FI_HMEM_SYSTEM, len);
++	}
++
++	return ret;
++}
++
++static int
++monitor_mr_regv(struct fid *fid, const struct iovec *iov,
++              size_t count, uint64_t access,
++              uint64_t offset, uint64_t requested_key,
++              uint64_t flags, struct fid_mr **mr, void *context)
++{
++	struct hook_domain *dom = container_of(fid, struct hook_domain, domain.fid);
++	int ret;
++
++	ret = fi_mr_regv(dom->hdomain, iov, count, access, offset,
++					 requested_key, flags, mr, context);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx_domain(dom), mon_mr_regv, FI_HMEM_SYSTEM,
++		              ofi_total_iov_len(iov, count));
++	}
++
++	return ret;
++}
++
++static int
++monitor_mr_regattr(struct fid *fid, const struct fi_mr_attr *attr,
++                 uint64_t flags, struct fid_mr **mr)
++{
++	struct hook_domain *dom = container_of(fid, struct hook_domain, domain.fid);
++	int ret;
++
++	ret = fi_mr_regattr(dom->hdomain, attr, flags, mr);
++	if (!ret) {
++		mon_add_cntr(monitor_ctx_domain(dom), mon_mr_regattr, attr->iface,
++		        ofi_total_iov_len(attr->mr_iov, attr->iov_count));
++	}
++
++	return ret;
++}
++
++static struct fi_ops_mr monitor_mr_ops = {
++	.size = sizeof(struct fi_ops_mr),
++	.reg = monitor_mr_reg,
++	.regv = monitor_mr_regv,
++	.regattr = monitor_mr_regattr,
++};
++
++static int monitor_domain_init(struct fid *fid)
++{
++	struct fid_domain *domain = container_of(fid, struct fid_domain, fid);
++	domain->mr = &monitor_mr_ops;
++
++	return 0;
++}
++
++static _Atomic int id = 0;
++static int monitor_get_id() {
++	return id++;
++}
++
++static int
++monitor_shm_init(struct monitor_context *mon_ctx)
++{
++	const struct fi_provider *hprov = mon_ctx->hprov;
++
++	int pid = getpid();
++	int ppid = getppid();
++	int mid = monitor_get_id();
++	char hostname[256];
++	gethostname(hostname, 255);
++
++	char basepath[384];
++	char stem[128] = MON_DEFAULT_STEM;
++
++	const char* env_basepath = getenv("FI_HOOK_MONITOR_BASEPATH");
++	if (env_basepath)
++		strncpy(stem, env_basepath, 127);
++
++	struct stat st = {0};
++	if (stat(stem, &st) == -1)
++		mkdir(stem, 0777); // TODO: update for real deployment
++
++
++	if ( snprintf(basepath, 383, "%s/%s", stem,hostname) < 0) {
++		FI_WARN(hprov, FI_LOG_CORE, "Failed so snprintf!\n");
++		return -EOVERFLOW;
++	}
++
++	st = (struct stat){0};
++	if (stat(basepath, &st) == -1)
++		mkdir(basepath, 0777); // TODO: update for real deployment
++
++
++	unsigned int job_id = 0;
++	const char* slurm_job_id_str = getenv("SLURM_JOB_ID");
++	char *endptr;
++	unsigned int out;
++	if (slurm_job_id_str != NULL) {
++		errno = 0;
++		out = strtoul(slurm_job_id_str, &endptr, 0);
++		if (errno == ERANGE || *endptr != '\0' || slurm_job_id_str == endptr)
++			FI_WARN(hprov, FI_LOG_FABRIC,
++				" could not parse SLURM_JOB_ID!\n");
++		else
++			job_id = out;
++	}
++
++	if ( snprintf(mon_ctx->shm_name, 511, "%s/%u_%u_%u_%u_%s",
++		     basepath, ppid, pid, mid, job_id, hprov->name) < 0) {
++		FI_WARN(hprov, FI_LOG_CORE, "Failed so snprintf!\n");
++		return -EOVERFLOW;
++	}
++
++	FI_TRACE(hprov, FI_LOG_FABRIC, "[%s] Writing to file: %s\n",
++		 hprov->name, mon_ctx->shm_name);
++
++	mon_ctx->share_size = sizeof(struct monitor_data) * mon_api_size + sizeof(uint8_t);
++
++	int fd = open(mon_ctx->shm_name, O_CREAT | O_RDWR, S_IRUSR|S_IWUSR);
++	if (fd < 0) {
++		FI_WARN(hprov, FI_LOG_CORE, "Failed to create shm! (%s)\n", strerror(errno));
++		return -ENOENT;
++	}
++	fchmod(fd,S_IRUSR|S_IWUSR | S_IROTH|S_IWOTH);
++	ftruncate(fd, mon_ctx->share_size);
++	mon_ctx->share = mmap(0, mon_ctx->share_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
++	if (mon_ctx->share == MAP_FAILED) {
++		FI_WARN(hprov, FI_LOG_CORE, "Failed to mmap! (%s)\n", strerror(errno));
++		close(fd);
++		return -EINVAL; // TODO: find better errno
++	}
++	mon_ctx->share[mon_ctx->share_size-sizeof(uint8_t)] = 0b0; // flush data on init
++
++	close(fd);
++	return FI_SUCCESS;
++}
++
++static int
++monitor_shm_close(struct monitor_context *mon_ctx)
++{
++	const struct fi_provider *hprov = mon_ctx->hprov;
++	int ret;
++
++	if (mon_ctx->linger) {
++		uint8_t *flags = (uint8_t*)(mon_ctx->share + mon_ctx->share_size-sizeof(uint8_t));
++		uint8_t old_flags = *flags;
++		*flags |= 0b1; // set request flag first to avoid tearing
++		FI_TRACE(hprov, FI_LOG_FABRIC, "[%s] Lingering enabled, will flush file %s but not delete.\n",
++			 hprov->name, mon_ctx->shm_name);
++
++		if (!(old_flags & 0b1)) { // old data not yet read;
++			struct monitor_data old_data[mon_api_size];
++			memcpy(old_data, mon_ctx->share, sizeof (old_data));
++			for (int i = 0; i < mon_api_size; i++) {
++				for(int j = 0; j < MON_SIZE_MAX; j++) {
++					mon_ctx->data[i].count[j] +=
++						old_data[i].count[j];
++					mon_ctx->data[i].sum[j] +=
++						old_data[i].sum[j];
++				}
++			}
++		}
++		memcpy(mon_ctx->share, mon_ctx->data, sizeof (mon_ctx->data));
++		*flags |= 0b10; // set fin flag
++		*flags ^= 0b01; // clear request flag
++	}
++
++	if ((ret = munmap(mon_ctx->share, mon_ctx->share_size)) != 0) {
++		FI_WARN(hprov, FI_LOG_CORE, "Failed to munmap! (%s)\n", strerror(errno));
++		return ret; // TODO: find better errno
++	}
++
++	if (!mon_ctx->linger) {
++		if ((ret = unlink(mon_ctx->shm_name)) != 0) {
++			FI_WARN(hprov, FI_LOG_CORE, "Failed to unlink! (%s)\n",
++				strerror(errno));
++			return ret;
++		}
++	}
++	return FI_SUCCESS;
++}
++
++static int hook_monitor_close(struct fid *fid)
++{
++	struct monitor_context *ctx = 
++		&(container_of(fid, struct monitor_fabric, fabric_hook)->mon_ctx);
++
++	// mon_report(ctx->hprov, ctx->data);
++	if (ctx->is_enabled)
++		monitor_shm_close(ctx);
++
++	hook_close(fid);
++	FI_TRACE(ctx->hprov, FI_LOG_CORE, "[%s] Closing monitor hook\n", ctx->hprov->name);
++	return FI_SUCCESS;
++}
++
++static struct fi_ops monitor_fabric_fid_ops = {
++	.size = sizeof(struct fi_ops),
++	.close = hook_monitor_close,
++	.bind = hook_bind,
++	.control = hook_control,
++	.ops_open = hook_ops_open,
++};
++
++struct hook_prov_ctx hook_monitor_ctx;
++
++static int 
++hook_monitor_fabric(struct fi_fabric_attr *attr,
++                     struct fid_fabric **fabric, void *context)
++{
++	struct fi_provider *hprov = context;
++	struct monitor_fabric *fab;
++
++	FI_TRACE(hprov, FI_LOG_FABRIC, "[%s] Installing monitor hook\n", 
++		hprov->name);
++
++	fab = calloc(1, sizeof *fab);
++	if (!fab)
++		return -FI_ENOMEM;
++
++	fab->mon_ctx.is_enabled = true;
++
++	fab->mon_ctx.hprov = hprov;
++	memset(&fab->mon_ctx.data, 0, sizeof (fab->mon_ctx.data));
++
++	char *endptr;
++	unsigned int out;
++
++	fab->mon_ctx.tick_max = MON_TICK_MAX_DEFAULT;
++	const char* tick_max_env = getenv("FI_HOOK_MONITOR_TICK_MAX");
++	if (tick_max_env != NULL) {
++		errno = 0;
++		out = strtoul(tick_max_env, &endptr, 0);
++		if (errno == ERANGE || *endptr != '\0' || tick_max_env == endptr)
++			FI_WARN(hprov, FI_LOG_FABRIC,
++				" could not parse FI_HOOK_MONITOR_TICK_MAX! Will use default.\n");
++		else
++			fab->mon_ctx.tick_max = out;
++	}
++
++	unsigned int linger = MON_LINGER_DEFAULT;
++	const char* linger_env = getenv("FI_HOOK_MONITOR_LINGER");
++	if (linger_env != NULL) {
++		errno = 0;
++		out = strtoul(linger_env, &endptr, 0);
++		if (errno == ERANGE || *endptr != '\0' || linger_env == endptr)
++			FI_WARN(hprov, FI_LOG_FABRIC,
++				" could not parse FI_HOOK_MONITOR_LINGER! Will use default.\n");
++		else
++			linger = out;
++	}
++	fab->mon_ctx.linger = linger > 0;
++
++	FI_TRACE(hprov, FI_LOG_FABRIC, "[%s] Max ticks set to: %u\n",
++		 hprov->name, fab->mon_ctx.tick_max);
++	FI_TRACE(hprov, FI_LOG_FABRIC, "[%s] Sync threshold set to: %u\n",
++		 hprov->name, fab->mon_ctx.sync_threshold_sec);
++
++	if (monitor_shm_init(&fab->mon_ctx) != FI_SUCCESS) {
++		FI_WARN(hprov, FI_LOG_FABRIC, 
++			" could not initialise ofi_hook_monitor! Will disable.\n");
++		fab->mon_ctx.is_enabled = false;
++	}
++	hook_fabric_init(&fab->fabric_hook, HOOK_MONITOR, attr->fabric, hprov,
++	                 &monitor_fabric_fid_ops, &hook_monitor_ctx);
++	*fabric = &fab->fabric_hook.fabric;
++	FI_TRACE(hprov, FI_LOG_FABRIC, "[%s] Installed monitor hook\n",
++		hprov->name);
++	return 0;
++}
++
++struct hook_prov_ctx hook_monitor_ctx = {
++	.prov = {
++		.version = OFI_VERSION_DEF_PROV,
++		/* We're a pass-through provider, so the fi_version is always the latest */
++		.fi_version = OFI_VERSION_LATEST,
++		.name = "ofi_hook_monitor",
++		.getinfo = NULL,
++		.fabric = hook_monitor_fabric,
++		.cleanup = NULL,
++	},
++};
++
++
++static int monitor_cq_init(struct fid *fid)
++{
++	struct fid_cq *cq = container_of(fid, struct fid_cq, fid);
++	cq->ops = &monitor_cq_ops;
++	return 0;
++}
++
++static int monitor_ep_init(struct fid *fid)
++{
++	struct fid_ep *ep = container_of(fid, struct fid_ep, fid);
++	ep->msg = &monitor_msg_ops;
++	ep->rma = &monitor_rma_ops;
++	ep->tagged = &monitor_tagged_ops;
++
++	return 0;
++}
++
++HOOK_MONITOR_INI
++{
++	hook_monitor_ctx.ini_fid[FI_CLASS_DOMAIN] = monitor_domain_init;
++	hook_monitor_ctx.ini_fid[FI_CLASS_CQ] = monitor_cq_init;
++	hook_monitor_ctx.ini_fid[FI_CLASS_EP] = monitor_ep_init;
++
++	return &hook_monitor_ctx.prov;
++}
+Index: src/fabric.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/fabric.c b/src/fabric.c
+--- a/src/fabric.c	(revision 95420e6ba61cbee06d7eb0f347185e3878151764)
++++ b/src/fabric.c	(revision 3131a0359de850592b13cf16efbd662119e2a515)
+@@ -474,7 +474,8 @@
+ 		/* These are hooking providers only.  Their order
+ 		 * doesn't matter
+ 		 */
+-		"ofi_hook_perf", "ofi_hook_trace", "ofi_hook_profile", "ofi_hook_debug",
++		"ofi_hook_perf", "ofi_hook_trace", "ofi_hook_profile", "ofi_hook_monitor",
++		"ofi_hook_debug",
+ 		"ofi_hook_noop", "ofi_hook_hmem", "ofi_hook_dmabuf_peer_mem",
+ 
+ 		/* So do the offload providers. */
+@@ -991,6 +992,7 @@
+ 	ofi_register_provider(HOOK_PERF_INIT, NULL);
+ 	ofi_register_provider(HOOK_TRACE_INIT, NULL);
+ 	ofi_register_provider(HOOK_PROFILE_INIT, NULL);
++	ofi_register_provider(HOOK_MONITOR_INIT, NULL);
+ 	ofi_register_provider(HOOK_DEBUG_INIT, NULL);
+ 	ofi_register_provider(HOOK_HMEM_INIT, NULL);
+ 	ofi_register_provider(HOOK_DMABUF_PEER_MEM_INIT, NULL);
+Index: prov/hook/monitor/reader.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/prov/hook/monitor/reader.py b/prov/hook/monitor/reader.py
+new file mode 100644
+--- /dev/null	(revision 1fb2f2f8ad1a04c18e381480c780d24162fb5c3c)
++++ b/prov/hook/monitor/reader.py	(revision 1fb2f2f8ad1a04c18e381480c780d24162fb5c3c)
+@@ -0,0 +1,133 @@
++#!//home/f5b3a7ad-ecee-426f-b7b7-1c62c2706216/venvs/venv311/bin/python3
++from argparse import ArgumentParser
++import struct
++from multiprocessing.shared_memory import SharedMemory
++from pathlib import Path
++import pandas as pd
++import numpy as np
++import copy
++import warnings
++warnings.simplefilter(action='ignore', category=RuntimeWarning)
++pd.options.display.width=1920
++pd.options.display.max_columns=300
++
++buckets = [
++"0_64",
++"64_512",
++"512_1K",
++"1K_4K",
++"4K_64K",
++"64K_256K",
++"256K_1M",
++"1M_4M",
++"4M_UP",
++]
++
++apis = [
++"mon_recv",
++"mon_recvv",
++"mon_recvmsg",
++"mon_trecv",
++"mon_trecvv",
++"mon_trecvmsg",
++"mon_send",
++"mon_sendv",
++"mon_sendmsg",
++"mon_inject",
++"mon_senddata",
++"mon_injectdata",
++"mon_tsend",
++"mon_tsendv",
++"mon_tsendmsg",
++"mon_tinject",
++"mon_tsenddata",
++"mon_tinjectdata",
++"mon_read",
++"mon_readv",
++"mon_readmsg",
++"mon_write",
++"mon_writev",
++"mon_writemsg",
++"mon_inject_write",
++"mon_writedata",
++"mon_inject_writedata",
++"mon_mr_reg",
++"mon_mr_regv",
++"mon_mr_regattr",
++"mon_cq_read",
++"mon_cq_readfrom",
++"mon_cq_readerr",
++"mon_cq_sread",
++"mon_cq_sreadfrom",
++"mon_cq_ctx",
++"mon_cq_msg_tx",
++"mon_cq_msg_rx",
++"mon_cq_data_tx",
++"mon_cq_data_rx",
++"mon_cq_tagged_tx",
++"mon_cq_tagged_rx",
++]
++
++def load(content):
++        lcontent = len(content)
++        struct_size = (lcontent-1)//2
++        flags = int(content[lcontent-1])
++        buffer = (flags & 0b00000010) >> 1
++        print(f"Buffer: {buffer}")
++        if buffer == 1:
++                content_subset = content[:struct_size]
++        else:
++                content_subset = content[struct_size:2*struct_size]
++
++        df_data = []
++        if len(content_subset) <= 0: return
++        for i, data in enumerate(struct.iter_unpack("<QQQQQQQQQQQQQQQQQQ", content_subset)):
++                data_count = data[:len(buckets)]
++                data_sum = data[len(buckets):]
++
++                datum = {"type":"count"}
++                datum["API"] = apis[i].replace("mon_", "")
++                has_data = False
++                for j,d in zip(buckets, data_count):
++                        datum[j] = d
++                        has_data |= d > 0
++                if has_data:
++                        df_data.append(datum)
++
++                datum = {"type":"amnt"}
++                datum["API"] = apis[i].replace("mon_", "")
++                for j,d in zip(buckets, data_sum):
++                        datum[j] = d
++                df_data.append(datum)
++
++        df = pd.DataFrame(df_data).set_index(["type","API"]).sort_index().T
++        df = df[df > 0].dropna(axis=1, how="all").T.fillna(0)
++        for c in df.columns:
++                df[c] = pd.to_numeric(df[c], downcast="unsigned")
++        return df
++
++
++def main():
++        parser = ArgumentParser()
++        parser.add_argument("path")
++        args = parser.parse_args()
++        path = Path(args.path)
++        files = list(filter(lambda x: "ofi_hook_monitor" in x.stem, path.iterdir()))
++
++        for file in files:
++                if not file.exists(): continue
++                shm = SharedMemory(file.stem, create=False)
++
++                content = bytes(shm.buf)
++                print(file.stem)
++                df = load(content)
++                flags = content[len(content)-1:len(content)][0]
++
++                shm.buf[shm.size-1] = flags | 0b00000001
++
++                print(df)
++                print("")
++                shm.close()
++
++
++if __name__ == "__main__": main()
