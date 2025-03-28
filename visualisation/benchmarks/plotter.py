@@ -161,6 +161,7 @@ def boxplots(run_set: dict[str, typing.Any],
              whis_q: int = 10,
              locator_base: float = 0.01,
              figsize: tuple[int, int] = (12, 8),
+             y_decimals: int = 2,
              fname: Optional[str] = None,
              out_dir: Optional[str] = None):
     """
@@ -174,6 +175,7 @@ def boxplots(run_set: dict[str, typing.Any],
     :param whis_q: percentile for boxpot whiskers, range [0,100]
     :param locator_base: Base for axis tick locator - Locator is percentage-based, with maximum 1 (0.01 = 1%)
     :param figsize: size of figure
+    :param y_decimals: number of decimals for y-axis
     :param fname: output file name
     :param out_dir: output file directory
     """
@@ -265,7 +267,7 @@ def boxplots(run_set: dict[str, typing.Any],
 
     ax.legend(custom_lines, ['tick=100', 'baseline'], ncols=2)
 
-    ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1))
+    ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1, decimals=y_decimals))
     ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(base=locator_base))
     ax.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(base=locator_base / 2))
     # ax.set_ylabel("Overhead")
@@ -294,6 +296,7 @@ def scaling(run_set: dict[str, typing.Any],
             save: bool = False,
             whis_q: int = 10,
             locator_base: float = 0.01,
+            y_decimals: int = 2,
             figsize: tuple[int, int] = (12, 8),
             fname: Optional[str] = None,
             out_dir: Optional[str] = None):
@@ -308,6 +311,7 @@ def scaling(run_set: dict[str, typing.Any],
     :param basepath_data: basepath for input data
     :param save: whether to save (True) or show (False) plots
     :param whis_q: percentile for boxpot whiskers, range [0,100]
+    :param y_decimals: number of decimal places for y-axis
     :param locator_base: Base for axis tick locator - Locator is percentage-based, with maximum 1 (0.01 = 1%)
     :param figsize: size of figure
     :param fname: output file name
@@ -379,7 +383,7 @@ def scaling(run_set: dict[str, typing.Any],
 
     ax.legend(custom_lines, ['tick=100', 'baseline'], ncols=2)
 
-    ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1))
+    ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1, decimals=y_decimals))
     ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(base=locator_base))
     ax.yaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(base=locator_base / 2))
     # ax.set_ylabel("Overhead")
@@ -960,6 +964,7 @@ def main_boxplots(run_set):
              system="atos",
              size="4",
              basepath_data=basepath_data,
+             y_decimals=0,
              basepath=basepath, save=save, figsize=figsize,
              fname="colletive_4", out_dir="atos")
 
@@ -969,6 +974,7 @@ def main_boxplots(run_set):
              basepath_data=basepath_data,
              basepath=basepath, save=save, figsize=figsize,
              locator_base=0.05,
+             y_decimals=0,
              fname="colletive_4", out_dir="sng")
 
 
@@ -985,6 +991,7 @@ def main_scaling(run_set):
             call="osu_bcast",
             metric="Avg Latency(us)",
             locator_base=0.05,
+            y_decimals=0,
             basepath_data=basepath_data,
             basepath=basepath, save=save, figsize=figsize,
             fname="osu_bcast", out_dir="atos")
@@ -994,6 +1001,7 @@ def main_scaling(run_set):
             call="osu_ibcast",
             metric="Pure Comm.(us)",
             locator_base=0.10,
+            y_decimals=0,
             basepath_data=basepath_data,
             basepath=basepath, save=save, figsize=figsize,
             fname="osu_ibcast", out_dir="atos")
@@ -1004,6 +1012,7 @@ def main_scaling(run_set):
             call="osu_bcast",
             metric="Avg Latency(us)",
             locator_base=0.10,
+            y_decimals=0,
             basepath_data=basepath_data,
             basepath=basepath, save=save, figsize=figsize,
             fname="osu_bcast", out_dir="sng")
@@ -1013,6 +1022,7 @@ def main_scaling(run_set):
             call="osu_ibcast",
             metric="Pure Comm.(us)",
             locator_base=0.10,
+            y_decimals=0,
             basepath_data=basepath_data,
             basepath=basepath, save=save, figsize=figsize,
             fname="osu_ibcast", out_dir="sng")
@@ -1023,6 +1033,7 @@ def main_scaling(run_set):
             call="osu_bcast",
             metric="Avg Latency(us)",
             locator_base=0.01,
+            y_decimals=0,
             basepath_data=basepath_data,
             basepath=basepath, save=save, figsize=figsize,
             fname="osu_bcast", out_dir="lumi")
@@ -1032,6 +1043,7 @@ def main_scaling(run_set):
             call="osu_ibcast",
             metric="Pure Comm.(us)",
             locator_base=0.01,
+            y_decimals=0,
             basepath_data=basepath_data,
             basepath=basepath, save=save, figsize=figsize,
             fname="osu_ibcast", out_dir="lumi")
