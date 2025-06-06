@@ -1,7 +1,7 @@
 # ofi_hook_monitor
 
 This repository contains the data to build, deploy, and benchmark the `ofi_hook_monitor` OFI plugin,
-as presented in the paper "Application-focused HPC Network Monitoring".
+as presented in the paper "Application-focused HPC Network Monitoring", published at ISC-HPC 2025.
 
 The repo is structured as follows:
 
