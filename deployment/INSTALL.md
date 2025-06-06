@@ -2,6 +2,9 @@
 
 This document describes how to build, deploy, and run the OFI Monitoring Stack.
 
+Note: As of [`b690555`](https://github.com/ofiwg/libfabric/commit/b690555e2998fa9cfe6cebc874f42c9281887610), an updated version of the the `ofi_hook_monitor` provider has been upstreamed into libfabric. 
+The version used in the paper is still kept in this repository for reproducibility purposes.
+
 ## Installing the OFI Monitoring stack
 
 ### Preparing Libfabric
