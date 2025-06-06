@@ -6,6 +6,7 @@ as presented in the paper "Application-focused HPC Network Monitoring".
 The repo is structured as follows:
 
 - `deployment` contains all files for installing & deploying the plugin
+  - Note: As of [`b690555`](https://github.com/ofiwg/libfabric/commit/b690555e2998fa9cfe6cebc874f42c9281887610), an updated version of the the `ofi_hook_monitor` provider has been upstreamed into libfabric. The version used in the paper is still kept in this repository for reproducibility purposes.
 - `aggregation` contains all files for benchmarking the plugin
 - `visualization` contains visualization scripts
 - `data` contains the data gathered during benchmarking
